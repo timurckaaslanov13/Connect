@@ -5,6 +5,8 @@ services:
     container_name: connect-auth-service
     ports:
       - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://auth_user:auth_password@auth-db:5432/auth_db
     depends_on:
       - auth-db
 
