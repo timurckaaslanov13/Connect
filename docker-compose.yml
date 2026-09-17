@@ -1,0 +1,24 @@
+services:
+  auth-service:
+    build:
+      context: ./services/auth-service
+    container_name: connect-auth-service
+    ports:
+      - "8000:8000"
+    depends_on:
+      - auth-db
+
+  auth-db:
+    image: postgres:16
+    container_name: connect-auth-db
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+
+volumes:
+  auth_db_data:
