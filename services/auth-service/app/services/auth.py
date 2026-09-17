@@ -1,10 +1,13 @@
 from pwdlib import PasswordHash
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
+from app.schemas.user import UserLogin, UserRegister
 from app.models.user import User
 from app.schemas.user import UserRegister
-from app.exceptions.auth import UserAlreadyExistsError
+from app.exceptions.auth import (
+    InvalidCredentialsError,
+    UserAlreadyExistsError,
+)
 
 password_hash = PasswordHash.recommended()
 
@@ -32,5 +35,27 @@ def register_user(db: Session, data: UserRegister) -> User:
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    return user
+
+def login_user(db: Session, data: UserLogin) -> User:
+    user = db.scalar(
+        select(User).where(User.email == data.email)
+    )
+
+    if user is None:
+        raise InvalidCredentialsError(
+            "Неверный email или пароль"
+        )
+
+    is_password_valid = password_hash.verify(
+        data.password,
+        user.password_hash,
+    )
+
+    if not is_password_valid:
+        raise InvalidCredentialsError(
+            "Неверный email или пароль"
+        )
 
     return user
