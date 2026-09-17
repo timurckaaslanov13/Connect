@@ -6,6 +6,8 @@ from app.exceptions.auth import (
     InvalidCredentialsError,
     UserAlreadyExistsError,
 )
+from app.models.user import User
+from app.security.dependencies import get_current_user
 
 from app.schemas.user import (
     TokenResponse,
@@ -67,3 +69,12 @@ def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(error),
         )
+        
+@router.get(
+    "/me",
+    response_model=UserResponse,
+)
+def me(
+    current_user: User = Depends(get_current_user),
+):
+    return current_user
