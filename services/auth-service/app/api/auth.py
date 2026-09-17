@@ -8,6 +8,7 @@ from app.exceptions.auth import (
 )
 
 from app.schemas.user import (
+    TokenResponse,
     UserLogin,
     UserRegister,
     UserResponse,
@@ -17,6 +18,7 @@ from app.services.auth import (
     login_user,
     register_user,
 )
+from app.security.jwt import create_access_token
 
 
 router = APIRouter(
@@ -45,14 +47,20 @@ def register(
 
 @router.post(
     "/login",
-    response_model=UserResponse,
+    response_model=TokenResponse,
 )
 def login(
     data: UserLogin,
     db: Session = Depends(get_db),
 ):
     try:
-        return login_user(db, data)
+        user = login_user(db, data)
+
+        token = create_access_token(user.id)
+
+        return TokenResponse(
+            access_token=token,
+        )
 
     except InvalidCredentialsError as error:
         raise HTTPException(
