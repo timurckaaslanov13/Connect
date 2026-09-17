@@ -12,12 +12,29 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
     depends_on:
       - auth-db
+      
   user-service:
     build:
       context: ./services/user-service
     container_name: connect-user-service
     ports:
       - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://user_user:user_password@user-db:5432/user_db
+    depends_on:
+      - user-db
+
+  user-db:
+    image: postgres:16
+    container_name: connect-user-db
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: user_user
+      POSTGRES_PASSWORD: user_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
 
   auth-db:
     image: postgres:16
@@ -33,3 +50,4 @@ services:
 
 volumes:
   auth_db_data:
+  user_db_data:
