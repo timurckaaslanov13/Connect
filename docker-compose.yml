@@ -12,6 +12,12 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
     depends_on:
       - auth-db
+  user-service:
+    build:
+      context: ./services/user-service
+    container_name: connect-user-service
+    ports:
+      - "8001:8000"
 
   auth-db:
     image: postgres:16
