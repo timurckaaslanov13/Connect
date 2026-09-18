@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.chat import Chat, ChatType
 from app.models.chat_member import ChatMember
+from app.clients.user_service import get_user_profile
 
 
 def create_private_chat(
@@ -83,7 +84,7 @@ def get_user_chats(
         db.scalars(statement).all()
     )
 
-def get_user_private_chats(
+async def get_user_private_chats(
     db: Session,
     current_user_id: int,
 ) -> list[dict]:
@@ -105,14 +106,28 @@ def get_user_private_chats(
 
         if other_member is None:
             continue
+    profile = await get_user_profile(
+    other_member.auth_user_id
+)
 
-        result.append(
-            {
-                "id": chat.id,
-                "type": chat.type,
-                "other_user_id": other_member.auth_user_id,
-                "created_at": chat.created_at,
-            }
-        )
+    result.append(
+        {
+            "id": chat.id,
+            "type": chat.type,
+            "other_user_id": other_member.auth_user_id,
+            "other_user_name": (
+                profile["display_name"]
+                if profile
+                else None
+            ),
+            "other_user_avatar_url": (
+                profile["avatar_url"]
+                if profile
+                else None
+            ),
+            "created_at": chat.created_at,
+        }
+    )
 
     return result
+

@@ -85,3 +85,12 @@ def get_profile_by_id(
 ) -> Profile | None:
     return db.get(Profile, profile_id)
 
+def get_profile_by_auth_user_id(
+    db: Session,
+    auth_user_id: int,
+) -> Profile | None:
+    return db.scalar(
+        select(Profile).where(
+            Profile.auth_user_id == auth_user_id
+        )
+    )

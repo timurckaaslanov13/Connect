@@ -16,7 +16,8 @@ from app.services.users import (
     get_profile,
     update_profile,
     search_profiles,
-    get_profile_by_id
+    get_profile_by_id,
+    get_profile_by_auth_user_id
 )
 
 router = APIRouter(
@@ -116,6 +117,27 @@ def get_user_by_id(
     profile = get_profile_by_id(
         db=db,
         profile_id=profile_id,
+    )
+
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Профиль не найден",
+        )
+
+    return profile
+
+@router.get(
+    "/by-auth-id/{auth_user_id}",
+    response_model=ProfileResponse,
+)
+def get_user_by_auth_id(
+    auth_user_id: int,
+    db: Session = Depends(get_db),
+):
+    profile = get_profile_by_auth_user_id(
+        db=db,
+        auth_user_id=auth_user_id,
     )
 
     if profile is None:

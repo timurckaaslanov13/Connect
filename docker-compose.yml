@@ -60,6 +60,7 @@ services:
       DATABASE_URL: postgresql+psycopg://chat_user:chat_password@chat-db:5432/chat_db
       JWT_SECRET_KEY: "super-secret-key-change-me"
       JWT_ALGORITHM: "HS256"
+      USER_SERVICE_URL: http://user-service:8000
     depends_on:
       - chat-db
 

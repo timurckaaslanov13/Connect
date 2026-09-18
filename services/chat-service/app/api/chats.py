@@ -48,11 +48,11 @@ def create_private_chat_endpoint(
     "",
     response_model=list[PrivateChatResponse],
 )
-def get_chats(
+async def get_chats(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
-    return get_user_private_chats(
+    return await get_user_private_chats(
         db=db,
         current_user_id=user_id,
     )
