@@ -1,0 +1,35 @@
+name: Connect checks
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies
+        run: python -m pip install -r services/message-service/requirements.txt
+      - name: Unit and security tests
+        run: python scripts/test_all.py
+      - name: Create isolated test configuration
+        run: python scripts/init_env.py --output .env.check --test-ports
+      - name: Start PostgreSQL, Redis and five API containers
+        run: docker compose --env-file .env.check -p connect-check -f docker-compose.yml -f docker-compose.check.yml up -d --build --wait --wait-timeout 180
+      - name: Migration round trips in temporary databases
+        run: python scripts/check_migrations.py --project connect-check
+      - name: Cross-service and cross-instance smoke test
+        run: python scripts/smoke_test.py --base-port 18000 --peer-port 18004
+      - name: Show container state on failure
+        if: failure()
+        run: docker compose --env-file .env.check -p connect-check -f docker-compose.yml -f docker-compose.check.yml ps -a
+      - name: Clean up CI-only containers and volumes
+        if: always()
+        run: docker compose --env-file .env.check -p connect-check -f docker-compose.yml -f docker-compose.check.yml down --volumes
