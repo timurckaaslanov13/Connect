@@ -69,6 +69,20 @@ class WebSocketTests(unittest.TestCase):
         finally:
             app.dependency_overrides.clear()
 
+    def test_history_pagination_and_chat_isolation(self):
+        app.dependency_overrides[get_current_user_id] = lambda: 7
+        try:
+            with patch.object(service, 'check_user_chat_membership', AsyncMock(return_value=True)), patch.object(service, 'SessionLocal', self.session):
+                ids = [self.client.post('/messages', json={'chat_id': 1, 'text': str(i)}).json()['id'] for i in range(3)]
+                self.client.post('/messages', json={'chat_id': 2, 'text': 'other chat'})
+                first = self.client.get('/messages/chat/1?limit=2').json()
+                second = self.client.get(f'/messages/chat/1?limit=2&after_id={first[-1]["id"]}').json()
+                self.assertEqual([row['id'] for row in first + second], ids)
+                self.assertEqual(self.client.get('/messages/chat/1?limit=101').status_code, 422)
+                self.assertEqual(self.client.get('/messages/chat/1?after_id=-1').status_code, 422)
+        finally:
+            app.dependency_overrides.clear()
+
     def test_membership_revoked_before_send(self):
         with patch.object(endpoint, 'decode_access_token', return_value=7), patch.object(endpoint, 'check_user_chat_membership', AsyncMock(return_value=True)), patch.object(service, 'check_user_chat_membership', AsyncMock(return_value=False)):
             with self.client.websocket_connect('/ws/chats/1?token=test') as socket:
@@ -86,10 +100,10 @@ class WebSocketTests(unittest.TestCase):
                     self.assertIn('error', first.receive_json())
                     first.send_text('   ')
                     self.assertIn('error', first.receive_json())
-                    first.send_text('Привет')
+                    first.send_text('РџСЂРёРІРµС‚')
                     result = first.receive_json()
                     self.assertEqual(second.receive_json(), result)
-                    self.assertEqual(result['text'], 'Привет')
+                    self.assertEqual(result['text'], 'РџСЂРёРІРµС‚')
                     self.assertEqual(result['sender_id'], 7)
                     with self.session() as db:
                         self.assertEqual(len(db.scalars(select(Message)).all()), 1)

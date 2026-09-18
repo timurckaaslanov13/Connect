@@ -26,13 +26,18 @@ async def create_message(sender_id: int, data: MessageCreate) -> MessageResponse
     return message
 
 
-def _load_messages(chat_id: int) -> list[MessageResponse]:
+def _load_messages(chat_id: int, after_id: int, limit: int) -> list[MessageResponse]:
     with SessionLocal() as db:
-        statement = select(Message).where(Message.chat_id == chat_id).order_by(Message.id.asc())
+        statement = (
+            select(Message)
+            .where(Message.chat_id == chat_id, Message.id > after_id)
+            .order_by(Message.id.asc())
+            .limit(limit)
+        )
         return [MessageResponse.model_validate(message) for message in db.scalars(statement)]
 
 
-async def get_chat_messages(chat_id: int, user_id: int) -> list[MessageResponse]:
+async def get_chat_messages(chat_id: int, user_id: int, after_id: int = 0, limit: int = 50) -> list[MessageResponse]:
     if not await check_user_chat_membership(chat_id, user_id):
         raise PermissionError('Пользователь не состоит в этом чате')
-    return await run_in_threadpool(_load_messages, chat_id)
+    return await run_in_threadpool(_load_messages, chat_id, after_id, limit)

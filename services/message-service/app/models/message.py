@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text, func
+from sqlalchemy import DateTime, Index, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.connection import Base
@@ -8,6 +8,7 @@ from app.database.connection import Base
 
 class Message(Base):
     __tablename__ = "messages"
+    __table_args__ = (Index("ix_messages_chat_id_id", "chat_id", "id"),)
 
     id: Mapped[int] = mapped_column(
         primary_key=True
