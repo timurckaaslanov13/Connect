@@ -8,6 +8,7 @@ from app.security.dependencies import get_current_user_id
 from app.services.chats import (
     create_private_chat,
     get_user_private_chats,
+    is_user_chat_member
 )
 from app.schemas.chat import (
     ChatResponse,
@@ -56,3 +57,21 @@ async def get_chats(
         db=db,
         current_user_id=user_id,
     )
+
+@router.get(
+    "/{chat_id}/members/{user_id}/check",
+)
+def check_chat_member(
+    chat_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+):
+    is_member = is_user_chat_member(
+        db=db,
+        chat_id=chat_id,
+        user_id=user_id,
+    )
+
+    return {
+        "is_member": is_member,
+    }

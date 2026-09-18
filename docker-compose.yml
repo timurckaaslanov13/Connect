@@ -86,6 +86,7 @@ services:
       DATABASE_URL: postgresql+psycopg://message_user:message_password@message-db:5432/message_db
       JWT_SECRET_KEY: "super-secret-key-change-me"
       JWT_ALGORITHM: "HS256"
+      CHAT_SERVICE_URL: http://chat-service:8000
     depends_on:
       - message-db
 

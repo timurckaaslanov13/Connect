@@ -131,3 +131,16 @@ async def get_user_private_chats(
 
     return result
 
+def is_user_chat_member(
+    db: Session,
+    chat_id: int,
+    user_id: int,
+) -> bool:
+    member = db.scalar(
+        select(ChatMember).where(
+            ChatMember.chat_id == chat_id,
+            ChatMember.auth_user_id == user_id,
+        )
+    )
+
+    return member is not None
