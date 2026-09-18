@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query, status
 from sqlalchemy.orm import Session
+ 
 
 from app.database.dependencies import get_db
 
@@ -14,6 +15,8 @@ from app.services.users import (
     create_profile,
     get_profile,
     update_profile,
+    search_profiles,
+    get_profile_by_id
 )
 
 router = APIRouter(
@@ -85,3 +88,40 @@ def update_user_profile(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(error),
         )
+        
+@router.get(
+    "/search",
+    response_model=list[ProfileResponse],
+)
+def search_users(
+    q: str = Query(
+        min_length=2,
+        max_length=100,
+    ),
+    db: Session = Depends(get_db),
+):
+    return search_profiles(
+        db=db,
+        query=q,
+    )
+    
+@router.get(
+    "/{profile_id}",
+    response_model=ProfileResponse,
+)
+def get_user_by_id(
+    profile_id: int,
+    db: Session = Depends(get_db),
+):
+    profile = get_profile_by_id(
+        db=db,
+        profile_id=profile_id,
+    )
+
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Профиль не найден",
+        )
+
+    return profile

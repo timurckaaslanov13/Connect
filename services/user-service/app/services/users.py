@@ -61,3 +61,27 @@ def update_profile(
     db.refresh(profile)
 
     return profile
+
+def search_profiles(
+    db: Session,
+    query: str,
+    limit: int = 20,
+) -> list[Profile]:
+    statement = (
+        select(Profile)
+        .where(
+            Profile.display_name.ilike(f"%{query}%")
+        )
+        .limit(limit)
+    )
+
+    return list(
+        db.scalars(statement).all()
+    )
+
+def get_profile_by_id(
+    db: Session,
+    profile_id: int,
+) -> Profile | None:
+    return db.get(Profile, profile_id)
+
