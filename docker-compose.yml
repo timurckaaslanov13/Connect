@@ -2,105 +2,141 @@ services:
   auth-service:
     build:
       context: ./services/auth-service
-    container_name: connect-auth-service
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${AUTH_PORT:-8000}:8000"
     environment:
       DATABASE_URL: postgresql+psycopg://auth_user:auth_password@auth-db:5432/auth_db
       JWT_SECRET_KEY: "super-secret-key-change-me"
       JWT_ALGORITHM: "HS256"
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     depends_on:
-      - auth-db
+      auth-db:
+        condition: service_healthy
 
   auth-db:
     image: postgres:16
-    container_name: connect-auth-db
     environment:
       POSTGRES_DB: auth_db
       POSTGRES_USER: auth_user
       POSTGRES_PASSWORD: auth_password
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${AUTH_DB_PORT:-5432}:5432"
     volumes:
       - auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 
   user-service:
     build:
       context: ./services/user-service
-    container_name: connect-user-service
     ports:
-      - "8001:8000"
+      - "127.0.0.1:${USER_PORT:-8001}:8000"
     environment:
       DATABASE_URL: postgresql+psycopg://user_user:user_password@user-db:5432/user_db
       JWT_SECRET_KEY: "super-secret-key-change-me"
       JWT_ALGORITHM: "HS256"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     depends_on:
-      - user-db
+      user-db:
+        condition: service_healthy
 
   user-db:
     image: postgres:16
-    container_name: connect-user-db
     environment:
       POSTGRES_DB: user_db
       POSTGRES_USER: user_user
       POSTGRES_PASSWORD: user_password
     ports:
-      - "5433:5432"
+      - "127.0.0.1:${USER_DB_PORT:-5433}:5432"
     volumes:
       - user_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_user -d user_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 
   chat-service:
     build:
       context: ./services/chat-service
-    container_name: connect-chat-service
     ports:
-      - "8002:8000"
+      - "127.0.0.1:${CHAT_PORT:-8002}:8000"
     environment:
       DATABASE_URL: postgresql+psycopg://chat_user:chat_password@chat-db:5432/chat_db
       JWT_SECRET_KEY: "super-secret-key-change-me"
       JWT_ALGORITHM: "HS256"
       USER_SERVICE_URL: http://user-service:8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     depends_on:
-      - chat-db
+      chat-db:
+        condition: service_healthy
 
   chat-db:
     image: postgres:16
-    container_name: connect-chat-db
     environment:
       POSTGRES_DB: chat_db
       POSTGRES_USER: chat_user
       POSTGRES_PASSWORD: chat_password
     ports:
-      - "5434:5432"
+      - "127.0.0.1:${CHAT_DB_PORT:-5434}:5432"
     volumes:
       - chat_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chat_user -d chat_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     
   message-service:
     build:
       context: ./services/message-service
-    container_name: connect-message-service
     ports:
-      - "8003:8000"
+      - "127.0.0.1:${MESSAGE_PORT:-8003}:8000"
     environment:
       DATABASE_URL: postgresql+psycopg://message_user:message_password@message-db:5432/message_db
       JWT_SECRET_KEY: "super-secret-key-change-me"
       JWT_ALGORITHM: "HS256"
       CHAT_SERVICE_URL: http://chat-service:8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     depends_on:
-      - message-db
+      message-db:
+        condition: service_healthy
 
   message-db:
     image: postgres:16
-    container_name: connect-message-db
     environment:
       POSTGRES_DB: message_db
       POSTGRES_USER: message_user
       POSTGRES_PASSWORD: message_password
     ports:
-      - "5435:5432"
+      - "127.0.0.1:${MESSAGE_DB_PORT:-5435}:5432"
     volumes:
       - message_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U message_user -d message_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 
 volumes:
   auth_db_data:
