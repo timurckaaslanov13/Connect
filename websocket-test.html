@@ -16,6 +16,7 @@
 
     <br><br>
 
+    <input id="server-url" type="url" value="ws://127.0.0.1:8003" aria-label="WebSocket server">
     <input id="chat-id" type="number" min="1" placeholder="ID чата">
 
     <input
@@ -31,6 +32,7 @@
 
     <script>
         let ws;
+        let authenticated = false;
 
         function log(message) {
             document.getElementById("log").textContent += message + "\n";
@@ -38,6 +40,7 @@
 
         function connect() {
             const token = document.getElementById("token").value;
+            const serverUrl = document.getElementById("server-url").value.replace(/\/$/, "");
             const chatId = Number(document.getElementById("chat-id").value);
 
             if (!token || !Number.isInteger(chatId) || chatId < 1) {
@@ -46,20 +49,28 @@
             }
 
             if (ws) ws.close();
+            authenticated = false;
 
             ws = new WebSocket(
-                `ws://127.0.0.1:8003/ws/chats/${chatId}?token=${encodeURIComponent(token)}`
+                `${serverUrl}/ws/chats/${chatId}`
             );
 
+            const socket = ws;
             ws.onopen = () => {
+                socket.send(JSON.stringify({type: 'auth', token}));
                 log("✅ WebSocket подключен");
             };
 
             ws.onmessage = (event) => {
+                if (socket !== ws) return;
+                const data = JSON.parse(event.data);
+                if (data.type === 'ready') authenticated = true;
                 log("📩 " + event.data);
             };
 
             ws.onclose = (event) => {
+                if (socket !== ws) return;
+                authenticated = false;
                 log(`❌ Закрыт. Код: ${event.code}`);
             };
 
@@ -71,7 +82,7 @@
         function sendMessage() {
             const message = document.getElementById("message").value;
 
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
+            if (!ws || ws.readyState !== WebSocket.OPEN || !authenticated) {
                 log("Сначала подключись");
                 return;
             }

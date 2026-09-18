@@ -8,8 +8,9 @@ class ConnectionManager:
         self.active_connections: dict[int, list[WebSocket]] = {}
         self._send_locks: dict[WebSocket, asyncio.Lock] = {}
 
-    async def connect(self, chat_id: int, websocket: WebSocket) -> None:
-        await websocket.accept()
+    async def connect(self, chat_id: int, websocket: WebSocket, *, accepted: bool = False) -> None:
+        if not accepted:
+            await websocket.accept()
         self.active_connections.setdefault(chat_id, []).append(websocket)
         self._send_locks[websocket] = asyncio.Lock()
 

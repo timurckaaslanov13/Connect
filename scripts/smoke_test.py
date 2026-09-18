@@ -11,7 +11,7 @@ import uuid
 
 import httpx
 from websockets.asyncio.client import connect
-from websockets.exceptions import InvalidStatus
+from websockets.exceptions import ConnectionClosedError
 
 
 async def check(base_port, peer_port=None):
@@ -56,13 +56,19 @@ async def check(base_port, peer_port=None):
         assert forbidden.status_code == 403
         ws_url = f'ws://127.0.0.1:{base_port+3}/ws/chats/{chat_id}'
         for denied_token in ('invalid', outsider):
-            try:
-                async with connect(ws_url + '?token=' + denied_token):
+            async with connect(ws_url) as socket:
+                await socket.send(json.dumps({'type': 'auth', 'token': denied_token}))
+                try:
+                    await asyncio.wait_for(socket.recv(), 5)
                     raise AssertionError('Unauthorized WebSocket accepted')
-            except InvalidStatus as error:
-                assert error.response.status_code == 403
+                except ConnectionClosedError as error:
+                    assert error.rcvd.code == 1008
         peer_url = f'ws://127.0.0.1:{peer_port}/ws/chats/{chat_id}' if peer_port else ws_url
-        async with connect(ws_url + '?token=' + first) as left, connect(peer_url + '?token=' + second) as right:
+        async with connect(ws_url) as left, connect(peer_url) as right:
+            await left.send(json.dumps({'type': 'auth', 'token': first}))
+            await right.send(json.dumps({'type': 'auth', 'token': second}))
+            ready = await asyncio.wait_for(asyncio.gather(left.recv(), right.recv()), 5)
+            assert all(json.loads(item)['type'] == 'ready' for item in ready)
             await left.send('Привет из сквозного теста')
             sent, received = await asyncio.wait_for(asyncio.gather(left.recv(), right.recv()), 5)
             assert sent == received

@@ -2,6 +2,8 @@
 import os
 import sys
 import unittest
+import time
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -26,6 +28,9 @@ from app.websocket.manager import manager
 
 class WebSocketTests(unittest.TestCase):
     def setUp(self):
+        expiry_patch = patch.object(endpoint, 'get_access_token_expiry', return_value=time.time() + 3600)
+        expiry_patch.start()
+        self.addCleanup(expiry_patch.stop)
         self.engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
         self.session = sessionmaker(bind=self.engine)
@@ -37,22 +42,45 @@ class WebSocketTests(unittest.TestCase):
         self.engine.dispose()
         manager.active_connections.clear()
 
+    @contextmanager
+    def connect(self, token='test'):
+        with self.client.websocket_connect('/ws/chats/1') as socket:
+            socket.send_json({'type': 'auth', 'token': token})
+            self.assertEqual(socket.receive_json(), {'type': 'ready', 'chat_id': 1})
+            yield socket
+
+    def test_idle_socket_expires(self):
+        with patch.object(endpoint, 'decode_access_token', return_value=7), patch.object(endpoint, 'get_access_token_expiry', return_value=time.time() + 0.2), patch.object(endpoint, 'check_user_chat_membership', AsyncMock(return_value=True)):
+            with self.connect() as socket:
+                with self.assertRaises(WebSocketDisconnect) as error:
+                    socket.receive_json()
+                self.assertEqual(error.exception.code, 1008)
+        self.assertFalse(manager.active_connections)
+
+    def test_auth_timeout(self):
+        with patch.object(endpoint, 'AUTH_TIMEOUT_SECONDS', 0.05):
+            with self.client.websocket_connect('/ws/chats/1') as socket:
+                with self.assertRaises(WebSocketDisconnect) as error:
+                    socket.receive_json()
+                self.assertEqual(error.exception.code, 1008)
+
     def test_missing_token(self):
         with self.assertRaises(WebSocketDisconnect) as error:
-            with self.client.websocket_connect('/ws/chats/1'):
-                pass
+            with self.client.websocket_connect('/ws/chats/1') as socket:
+                socket.send_json({'type': 'auth'})
+                socket.receive_json()
         self.assertEqual(error.exception.code, 1008)
 
     def test_invalid_token(self):
         with self.assertRaises(WebSocketDisconnect) as error:
-            with self.client.websocket_connect('/ws/chats/1?token=bad'):
+            with self.connect('bad'):
                 pass
         self.assertEqual(error.exception.code, 1008)
 
     def test_nonmember(self):
         with patch.object(endpoint, 'decode_access_token', return_value=7), patch.object(endpoint, 'check_user_chat_membership', AsyncMock(return_value=False)):
             with self.assertRaises(WebSocketDisconnect) as error:
-                with self.client.websocket_connect('/ws/chats/1?token=test'):
+                with self.connect():
                     pass
             self.assertEqual(error.exception.code, 1008)
         self.assertFalse(manager.active_connections)
@@ -70,7 +98,7 @@ class WebSocketTests(unittest.TestCase):
         app.dependency_overrides[get_current_user_id] = lambda: 7
         try:
             with patch.object(endpoint, 'decode_access_token', return_value=7), patch.object(endpoint, 'check_user_chat_membership', AsyncMock(return_value=True)), patch.object(service, 'check_user_chat_membership', AsyncMock(return_value=True)), patch.object(service, 'SessionLocal', self.session):
-                with self.client.websocket_connect('/ws/chats/1?token=test') as socket:
+                with self.connect() as socket:
                     response = self.client.post('/messages', json={'chat_id': 1, 'text': 'HTTP'})
                     self.assertEqual(response.status_code, 201)
                     self.assertEqual(socket.receive_json(), response.json())
@@ -97,7 +125,7 @@ class WebSocketTests(unittest.TestCase):
         async def close_on_publish(**kwargs):
             await manager.close_all()
         with patch.object(endpoint, 'decode_access_token', return_value=7), patch.object(endpoint, 'check_user_chat_membership', AsyncMock(return_value=True)), patch.object(endpoint, 'create_message', side_effect=close_on_publish):
-            with self.client.websocket_connect('/ws/chats/1?token=test') as socket:
+            with self.connect() as socket:
                 socket.send_text('hello')
                 with self.assertRaises(WebSocketDisconnect) as error:
                     socket.receive_json()
@@ -106,7 +134,7 @@ class WebSocketTests(unittest.TestCase):
 
     def test_membership_revoked_before_send(self):
         with patch.object(endpoint, 'decode_access_token', return_value=7), patch.object(endpoint, 'check_user_chat_membership', AsyncMock(return_value=True)), patch.object(service, 'check_user_chat_membership', AsyncMock(return_value=False)):
-            with self.client.websocket_connect('/ws/chats/1?token=test') as socket:
+            with self.connect() as socket:
                 socket.send_text('denied')
                 with self.assertRaises(WebSocketDisconnect) as error:
                     socket.receive_json()
@@ -115,8 +143,8 @@ class WebSocketTests(unittest.TestCase):
 
     def test_delivery_validation_persistence_cleanup(self):
         with patch.object(endpoint, 'decode_access_token', return_value=7), patch.object(endpoint, 'check_user_chat_membership', AsyncMock(return_value=True)), patch.object(service, 'check_user_chat_membership', AsyncMock(return_value=True)), patch.object(service, 'SessionLocal', self.session):
-            with self.client.websocket_connect('/ws/chats/1?token=test') as first:
-                with self.client.websocket_connect('/ws/chats/1?token=test') as second:
+            with self.connect() as first:
+                with self.connect() as second:
                     first.send_text('x' * 5001)
                     self.assertIn('error', first.receive_json())
                     first.send_text('   ')
