@@ -6,6 +6,7 @@ Requires httpx and websockets from message-service requirements.
 import argparse
 import asyncio
 import secrets
+import json
 import uuid
 
 import httpx
@@ -57,10 +58,12 @@ async def check(base_port):
             await left.send('Привет из сквозного теста')
             sent, received = await asyncio.wait_for(asyncio.gather(left.recv(), right.recv()), 5)
             assert sent == received
+            reply = request('POST', messages + '/messages', second, json={'chat_id': chat_id, 'text': 'HTTP reply'})
+            sent, received = await asyncio.wait_for(asyncio.gather(left.recv(), right.recv()), 5)
+            assert json.loads(sent) == json.loads(received) == reply
         history = request('GET', messages + f'/messages/chat/{chat_id}', second)
-        assert len(history) == 1 and history[0]['sender_id'] == first_id
+        assert len(history) == 2 and history[0]['sender_id'] == first_id
         assert history[0]['text'] == 'Привет из сквозного теста'
-        request('POST', messages + '/messages', second, json={'chat_id': chat_id, 'text': 'HTTP reply'})
         assert len(request('GET', messages + f'/messages/chat/{chat_id}', first)) == 2
     print('PASS: register, login, profiles, private chat, duplicate lookup, permissions, WebSocket delivery, HTTP send and history')
 

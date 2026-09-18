@@ -1,97 +1,53 @@
+import logging
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
-
-from app.schemas.message import MessageCreate
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.clients.chat_service import check_user_chat_membership
-from app.database.connection import SessionLocal
-from app.models.message import Message
+from app.schemas.message import MessageCreate
 from app.security.jwt import decode_access_token
+from app.services.messages import create_message
 from app.websocket.manager import manager
 
-
-router = APIRouter(
-    prefix="/ws",
-    tags=["websocket"],
-)
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix='/ws', tags=['websocket'])
 
 
-@router.websocket("/chats/{chat_id}")
-async def chat_websocket(
-    websocket: WebSocket,
-    chat_id: int,
-):
-    token = websocket.query_params.get("token")
-
-    if token is None:
-        await websocket.close(code=1008)
-        return
-
+@router.websocket('/chats/{chat_id}')
+async def chat_websocket(websocket: WebSocket, chat_id: int):
+    token = websocket.query_params.get('token')
     try:
+        if not token or chat_id < 1:
+            raise ValueError('Invalid credentials')
         user_id = decode_access_token(token)
-
     except ValueError:
         await websocket.close(code=1008)
         return
 
-    is_member = await check_user_chat_membership(
-        chat_id=chat_id,
-        user_id=user_id,
-    )
-
-    if not is_member:
+    if not await check_user_chat_membership(chat_id, user_id):
         await websocket.close(code=1008)
         return
 
-    await manager.connect(
-        chat_id=chat_id,
-        websocket=websocket,
-    )
-
-    db = SessionLocal()
-
+    await manager.connect(chat_id, websocket)
     try:
         while True:
             text = await websocket.receive_text()
-
-            if not text.strip():
-                continue
-
             try:
-                MessageCreate(chat_id=chat_id, text=text)
+                data = MessageCreate(chat_id=chat_id, text=text)
             except ValidationError:
-                await websocket.send_json({"error": "Сообщение должно содержать от 1 до 5000 символов"})
+                await websocket.send_json({'error': 'Сообщение должно содержать от 1 до 5000 символов и не состоять из пробелов'})
                 continue
-
-            message = Message(
-                chat_id=chat_id,
-                sender_id=user_id,
-                text=text,
-            )
-
-            db.add(message)
-            db.commit()
-            db.refresh(message)
-
-            await manager.broadcast(
-                chat_id=chat_id,
-                data={
-                    "id": message.id,
-                    "chat_id": message.chat_id,
-                    "sender_id": message.sender_id,
-                    "text": message.text,
-                    "created_at": message.created_at.isoformat(),
-                    "is_read": message.is_read,
-                },
-            )
-
+            try:
+                decode_access_token(token)
+                await create_message(sender_id=user_id, data=data)
+            except (ValueError, PermissionError):
+                await websocket.close(code=1008)
+                return
     except WebSocketDisconnect:
         pass
-
+    except SQLAlchemyError:
+        logger.exception('Could not save WebSocket message')
+        await websocket.close(code=1011)
     finally:
-        manager.disconnect(
-            chat_id=chat_id,
-            websocket=websocket,
-        )
-
-        db.close()
+        manager.disconnect(chat_id, websocket)

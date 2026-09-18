@@ -1,59 +1,38 @@
-from sqlalchemy.orm import Session
-
-from app.clients.chat_service import check_user_chat_membership
-from app.models.message import Message
-from app.schemas.message import MessageCreate
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 
-async def create_message(
-    db: Session,
-    sender_id: int,
-    data: MessageCreate,
-) -> Message:
-    is_member = await check_user_chat_membership(
-        chat_id=data.chat_id,
-        user_id=sender_id,
-    )
+from app.clients.chat_service import check_user_chat_membership
+from app.database.connection import SessionLocal
+from app.models.message import Message
+from app.schemas.message import MessageCreate, MessageResponse
+from app.websocket.manager import manager
 
-    if not is_member:
-        raise ValueError(
-            "Пользователь не состоит в этом чате"
-        )
 
-    message = Message(
-        chat_id=data.chat_id,
-        sender_id=sender_id,
-        text=data.text,
-    )
+def _save_message(sender_id: int, data: MessageCreate) -> MessageResponse:
+    # The whole session lives in one worker thread and ends before broadcasting.
+    with SessionLocal() as db:
+        message = Message(chat_id=data.chat_id, sender_id=sender_id, text=data.text)
+        db.add(message)
+        db.commit()
+        db.refresh(message)
+        return MessageResponse.model_validate(message)
 
-    db.add(message)
-    db.commit()
-    db.refresh(message)
 
+async def create_message(sender_id: int, data: MessageCreate) -> MessageResponse:
+    if not await check_user_chat_membership(data.chat_id, sender_id):
+        raise PermissionError('Пользователь не состоит в этом чате')
+    message = await run_in_threadpool(_save_message, sender_id, data)
+    await manager.broadcast(data.chat_id, message.model_dump(mode='json'))
     return message
 
 
-async def get_chat_messages(
-    db: Session,
-    chat_id: int,
-    user_id: int,
-) -> list[Message]:
-    is_member = await check_user_chat_membership(
-        chat_id=chat_id,
-        user_id=user_id,
-    )
+def _load_messages(chat_id: int) -> list[MessageResponse]:
+    with SessionLocal() as db:
+        statement = select(Message).where(Message.chat_id == chat_id).order_by(Message.id.asc())
+        return [MessageResponse.model_validate(message) for message in db.scalars(statement)]
 
-    if not is_member:
-        raise ValueError(
-            "Пользователь не состоит в этом чате"
-        )
 
-    statement = (
-        select(Message)
-        .where(Message.chat_id == chat_id)
-        .order_by(Message.created_at.asc())
-    )
-
-    return list(
-        db.scalars(statement).all()
-    )
+async def get_chat_messages(chat_id: int, user_id: int) -> list[MessageResponse]:
+    if not await check_user_chat_membership(chat_id, user_id):
+        raise PermissionError('Пользователь не состоит в этом чате')
+    return await run_in_threadpool(_load_messages, chat_id)
