@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Connect WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket test</h1>
+
+    <input
+        id="token"
+        type="password"
+        placeholder="JWT token"
+        style="width: 800px;"
+    >
+
+    <br><br>
+
+    <input id="chat-id" type="number" min="1" placeholder="ID чата">
+
+    <input
+        id="message"
+        type="text"
+        placeholder="Сообщение"
+    >
+
+    <button onclick="connect()">Подключиться</button>
+    <button onclick="sendMessage()">Отправить</button>
+
+    <pre id="log"></pre>
+
+    <script>
+        let ws;
+
+        function log(message) {
+            document.getElementById("log").textContent += message + "\n";
+        }
+
+        function connect() {
+            const token = document.getElementById("token").value;
+            const chatId = Number(document.getElementById("chat-id").value);
+
+            if (!token || !Number.isInteger(chatId) || chatId < 1) {
+                log("Укажи JWT token и ID чата");
+                return;
+            }
+
+            if (ws) ws.close();
+
+            ws = new WebSocket(
+                `ws://127.0.0.1:8003/ws/chats/${chatId}?token=${encodeURIComponent(token)}`
+            );
+
+            ws.onopen = () => {
+                log("✅ WebSocket подключен");
+            };
+
+            ws.onmessage = (event) => {
+                log("📩 " + event.data);
+            };
+
+            ws.onclose = (event) => {
+                log(`❌ Закрыт. Код: ${event.code}`);
+            };
+
+            ws.onerror = () => {
+                log("⚠️ WebSocket ошибка");
+            };
+        }
+
+        function sendMessage() {
+            const message = document.getElementById("message").value;
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log("Сначала подключись");
+                return;
+            }
+
+            ws.send(message);
+        }
+    </script>
+</body>
+</html>

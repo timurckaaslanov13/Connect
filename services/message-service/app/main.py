@@ -1,12 +1,13 @@
 from fastapi import FastAPI
 from app.api.messages import router as messages_router
+from app.api.websocket import router as websocket_router
 
 app = FastAPI(
     title="Connect Message Service",
     version="0.1.0",
 )
 app.include_router(messages_router)
-
+app.include_router(websocket_router)
 @app.get("/health")
 def health():
     return {
