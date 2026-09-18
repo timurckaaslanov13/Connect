@@ -1,0 +1,22 @@
+# Add with: -f docker-compose.yml -f docker-compose.check.yml
+services:
+  message-peer:
+    build:
+      context: ./services/message-service
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:18004:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://message_user:${MESSAGE_DB_PASSWORD:?Set database password in .env}@message-db:5432/message_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT key in .env}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Set internal API key in .env}
+      CHAT_SERVICE_URL: http://chat-service:8000
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      message-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20

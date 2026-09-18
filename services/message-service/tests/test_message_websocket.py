@@ -93,6 +93,17 @@ class WebSocketTests(unittest.TestCase):
         finally:
             app.dependency_overrides.clear()
 
+    def test_server_close_during_publish_cleans_up(self):
+        async def close_on_publish(**kwargs):
+            await manager.close_all()
+        with patch.object(endpoint, 'decode_access_token', return_value=7), patch.object(endpoint, 'check_user_chat_membership', AsyncMock(return_value=True)), patch.object(endpoint, 'create_message', side_effect=close_on_publish):
+            with self.client.websocket_connect('/ws/chats/1?token=test') as socket:
+                socket.send_text('hello')
+                with self.assertRaises(WebSocketDisconnect) as error:
+                    socket.receive_json()
+                self.assertEqual(error.exception.code, 1012)
+        self.assertFalse(manager.active_connections)
+
     def test_membership_revoked_before_send(self):
         with patch.object(endpoint, 'decode_access_token', return_value=7), patch.object(endpoint, 'check_user_chat_membership', AsyncMock(return_value=True)), patch.object(service, 'check_user_chat_membership', AsyncMock(return_value=False)):
             with self.client.websocket_connect('/ws/chats/1?token=test') as socket:

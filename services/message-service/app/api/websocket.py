@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
+from starlette.websockets import WebSocketState
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.clients.chat_service import ChatServiceUnavailable, check_user_chat_membership
@@ -35,7 +36,7 @@ async def chat_websocket(websocket: WebSocket, chat_id: int):
 
     await manager.connect(chat_id, websocket)
     try:
-        while True:
+        while websocket.application_state == WebSocketState.CONNECTED:
             text = await websocket.receive_text()
             try:
                 data = MessageCreate(chat_id=chat_id, text=text)

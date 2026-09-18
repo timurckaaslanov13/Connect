@@ -14,7 +14,7 @@ from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
 
 
-async def check(base_port):
+async def check(base_port, peer_port=None):
     urls = [f'http://127.0.0.1:{base_port+i}' for i in range(4)]
     auth, users, chats, messages = urls
     with httpx.Client(timeout=10) as client:
@@ -61,7 +61,8 @@ async def check(base_port):
                     raise AssertionError('Unauthorized WebSocket accepted')
             except InvalidStatus as error:
                 assert error.response.status_code == 403
-        async with connect(ws_url + '?token=' + first) as left, connect(ws_url + '?token=' + second) as right:
+        peer_url = f'ws://127.0.0.1:{peer_port}/ws/chats/{chat_id}' if peer_port else ws_url
+        async with connect(ws_url + '?token=' + first) as left, connect(peer_url + '?token=' + second) as right:
             await left.send('Привет из сквозного теста')
             sent, received = await asyncio.wait_for(asyncio.gather(left.recv(), right.recv()), 5)
             assert sent == received
@@ -80,5 +81,6 @@ async def check(base_port):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base-port', type=int, default=18000)
+    parser.add_argument('--peer-port', type=int)
     args = parser.parse_args()
-    asyncio.run(check(args.base_port))
+    asyncio.run(check(args.base_port, args.peer_port))

@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    redis_url: str | None = None
     internal_api_key: str = Field(min_length=32)
     database_url: str
 

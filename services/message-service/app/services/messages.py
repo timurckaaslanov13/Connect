@@ -5,7 +5,7 @@ from app.clients.chat_service import check_user_chat_membership
 from app.database.connection import SessionLocal
 from app.models.message import Message
 from app.schemas.message import MessageCreate, MessageResponse
-from app.websocket.manager import manager
+from app.websocket.events import events
 
 
 def _save_message(sender_id: int, data: MessageCreate) -> MessageResponse:
@@ -22,7 +22,7 @@ async def create_message(sender_id: int, data: MessageCreate) -> MessageResponse
     if not await check_user_chat_membership(data.chat_id, sender_id):
         raise PermissionError('Пользователь не состоит в этом чате')
     message = await run_in_threadpool(_save_message, sender_id, data)
-    await manager.broadcast(data.chat_id, message.model_dump(mode='json'))
+    await events.publish(data.chat_id, message.model_dump(mode='json'))
     return message
 
 

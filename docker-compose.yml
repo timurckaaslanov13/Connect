@@ -115,6 +115,7 @@ services:
       JWT_ALGORITHM: "HS256"
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Set internal API key in .env}
       CHAT_SERVICE_URL: http://chat-service:8000
+      REDIS_URL: redis://redis:6379/0
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 5s
@@ -122,6 +123,8 @@ services:
       retries: 20
     depends_on:
       message-db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   message-db:
@@ -136,6 +139,14 @@ services:
       - message_db_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U message_user -d message_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 3s
       timeout: 3s
       retries: 20
