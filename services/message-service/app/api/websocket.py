@@ -4,7 +4,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.clients.chat_service import check_user_chat_membership
+from app.clients.chat_service import ChatServiceUnavailable, check_user_chat_membership
 from app.schemas.message import MessageCreate
 from app.security.jwt import decode_access_token
 from app.services.messages import create_message
@@ -25,8 +25,12 @@ async def chat_websocket(websocket: WebSocket, chat_id: int):
         await websocket.close(code=1008)
         return
 
-    if not await check_user_chat_membership(chat_id, user_id):
-        await websocket.close(code=1008)
+    try:
+        if not await check_user_chat_membership(chat_id, user_id):
+            await websocket.close(code=1008)
+            return
+    except ChatServiceUnavailable:
+        await websocket.close(code=1011)
         return
 
     await manager.connect(chat_id, websocket)
@@ -46,6 +50,8 @@ async def chat_websocket(websocket: WebSocket, chat_id: int):
                 return
     except WebSocketDisconnect:
         pass
+    except ChatServiceUnavailable:
+        await websocket.close(code=1011)
     except SQLAlchemyError:
         logger.exception('Could not save WebSocket message')
         await websocket.close(code=1011)

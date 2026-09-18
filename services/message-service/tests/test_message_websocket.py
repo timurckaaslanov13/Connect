@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-os.environ.update(DATABASE_URL='sqlite://', JWT_SECRET_KEY='test-key-' * 8,
+os.environ.update(INTERNAL_API_KEY='test-internal-key-' * 4, DATABASE_URL='sqlite://', JWT_SECRET_KEY='test-key-' * 8,
                   CHAT_SERVICE_URL='http://chat.test')
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -15,6 +15,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.main import app
+from app.clients.chat_service import ChatServiceUnavailable
 from app.api import websocket as endpoint
 from app.services import messages as service
 from app.security.dependencies import get_current_user_id
@@ -55,6 +56,15 @@ class WebSocketTests(unittest.TestCase):
                     pass
             self.assertEqual(error.exception.code, 1008)
         self.assertFalse(manager.active_connections)
+
+    def test_membership_outage_returns_503(self):
+        app.dependency_overrides[get_current_user_id] = lambda: 7
+        try:
+            with patch.object(service, 'check_user_chat_membership', AsyncMock(side_effect=ChatServiceUnavailable('unavailable'))):
+                self.assertEqual(self.client.post('/messages', json={'chat_id': 1, 'text': 'hello'}).status_code, 503)
+                self.assertEqual(self.client.get('/messages/chat/1').status_code, 503)
+        finally:
+            app.dependency_overrides.clear()
 
     def test_http_message_is_broadcast(self):
         app.dependency_overrides[get_current_user_id] = lambda: 7
@@ -100,10 +110,10 @@ class WebSocketTests(unittest.TestCase):
                     self.assertIn('error', first.receive_json())
                     first.send_text('   ')
                     self.assertIn('error', first.receive_json())
-                    first.send_text('РџСЂРёРІРµС‚')
+                    first.send_text('Привет')
                     result = first.receive_json()
                     self.assertEqual(second.receive_json(), result)
-                    self.assertEqual(result['text'], 'РџСЂРёРІРµС‚')
+                    self.assertEqual(result['text'], 'Привет')
                     self.assertEqual(result['sender_id'], 7)
                     with self.session() as db:
                         self.assertEqual(len(db.scalars(select(Message)).all()), 1)

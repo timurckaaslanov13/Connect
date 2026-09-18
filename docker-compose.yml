@@ -5,8 +5,8 @@ services:
     ports:
       - "127.0.0.1:${AUTH_PORT:-8000}:8000"
     environment:
-      DATABASE_URL: postgresql+psycopg://auth_user:auth_password@auth-db:5432/auth_db
-      JWT_SECRET_KEY: "super-secret-key-change-me"
+      DATABASE_URL: postgresql+psycopg://auth_user:${AUTH_DB_PASSWORD:?Set database password in .env}@auth-db:5432/auth_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Run python scripts/init_env.py}
       JWT_ALGORITHM: "HS256"
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
     healthcheck:
@@ -23,7 +23,7 @@ services:
     environment:
       POSTGRES_DB: auth_db
       POSTGRES_USER: auth_user
-      POSTGRES_PASSWORD: auth_password
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?Set database password in .env}
     ports:
       - "127.0.0.1:${AUTH_DB_PORT:-5432}:5432"
     volumes:
@@ -40,8 +40,8 @@ services:
     ports:
       - "127.0.0.1:${USER_PORT:-8001}:8000"
     environment:
-      DATABASE_URL: postgresql+psycopg://user_user:user_password@user-db:5432/user_db
-      JWT_SECRET_KEY: "super-secret-key-change-me"
+      DATABASE_URL: postgresql+psycopg://user_user:${USER_DB_PASSWORD:?Set database password in .env}@user-db:5432/user_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Run python scripts/init_env.py}
       JWT_ALGORITHM: "HS256"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
@@ -57,7 +57,7 @@ services:
     environment:
       POSTGRES_DB: user_db
       POSTGRES_USER: user_user
-      POSTGRES_PASSWORD: user_password
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD:?Set database password in .env}
     ports:
       - "127.0.0.1:${USER_DB_PORT:-5433}:5432"
     volumes:
@@ -74,9 +74,10 @@ services:
     ports:
       - "127.0.0.1:${CHAT_PORT:-8002}:8000"
     environment:
-      DATABASE_URL: postgresql+psycopg://chat_user:chat_password@chat-db:5432/chat_db
-      JWT_SECRET_KEY: "super-secret-key-change-me"
+      DATABASE_URL: postgresql+psycopg://chat_user:${CHAT_DB_PASSWORD:?Set database password in .env}@chat-db:5432/chat_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Run python scripts/init_env.py}
       JWT_ALGORITHM: "HS256"
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Set internal API key in .env}
       USER_SERVICE_URL: http://user-service:8000
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
@@ -92,7 +93,7 @@ services:
     environment:
       POSTGRES_DB: chat_db
       POSTGRES_USER: chat_user
-      POSTGRES_PASSWORD: chat_password
+      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD:?Set database password in .env}
     ports:
       - "127.0.0.1:${CHAT_DB_PORT:-5434}:5432"
     volumes:
@@ -109,9 +110,10 @@ services:
     ports:
       - "127.0.0.1:${MESSAGE_PORT:-8003}:8000"
     environment:
-      DATABASE_URL: postgresql+psycopg://message_user:message_password@message-db:5432/message_db
-      JWT_SECRET_KEY: "super-secret-key-change-me"
+      DATABASE_URL: postgresql+psycopg://message_user:${MESSAGE_DB_PASSWORD:?Set database password in .env}@message-db:5432/message_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Run python scripts/init_env.py}
       JWT_ALGORITHM: "HS256"
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Set internal API key in .env}
       CHAT_SERVICE_URL: http://chat-service:8000
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
@@ -127,7 +129,7 @@ services:
     environment:
       POSTGRES_DB: message_db
       POSTGRES_USER: message_user
-      POSTGRES_PASSWORD: message_password
+      POSTGRES_PASSWORD: ${MESSAGE_DB_PASSWORD:?Set database password in .env}
     ports:
       - "127.0.0.1:${MESSAGE_DB_PORT:-5435}:5432"
     volumes:

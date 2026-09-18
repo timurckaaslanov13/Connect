@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.clients.chat_service import ChatServiceUnavailable
 from app.schemas.message import MessageCreate, MessageResponse
 from app.security.dependencies import get_current_user_id
 from app.services.messages import create_message, get_chat_messages
@@ -11,6 +12,8 @@ router = APIRouter(prefix='/messages', tags=['messages'])
 async def send_message(data: MessageCreate, user_id: int = Depends(get_current_user_id)):
     try:
         return await create_message(sender_id=user_id, data=data)
+    except ChatServiceUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     except PermissionError as error:
         raise HTTPException(status_code=403, detail=str(error)) from error
 
@@ -24,5 +27,7 @@ async def get_messages(
 ):
     try:
         return await get_chat_messages(chat_id=chat_id, user_id=user_id, after_id=after_id, limit=limit)
+    except ChatServiceUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     except PermissionError as error:
         raise HTTPException(status_code=403, detail=str(error)) from error

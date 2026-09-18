@@ -13,7 +13,7 @@ def create_private_chat(
     other_user_id: int,
 ) -> Chat:
     if current_user_id == other_user_id:
-        raise ValueError("РќРµР»СЊР·СЏ СЃРѕР·РґР°С‚СЊ С‡Р°С‚ СЃ СЃР°РјРёРј СЃРѕР±РѕР№")
+        raise ValueError("Нельзя создать чат с самим собой")
 
     private_key = ":".join(str(user_id) for user_id in sorted((current_user_id, other_user_id)))
     existing_chat = db.scalar(select(Chat).where(Chat.private_key == private_key))

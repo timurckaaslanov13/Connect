@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
-os.environ.update(DATABASE_URL='sqlite://', JWT_SECRET_KEY='test-key-' * 8,
+os.environ.update(INTERNAL_API_KEY='test-internal-key-' * 4, DATABASE_URL='sqlite://', JWT_SECRET_KEY='test-key-' * 8,
                   USER_SERVICE_URL='http://user.test')
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.services import chats

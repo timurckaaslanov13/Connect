@@ -47,6 +47,7 @@ async def check(base_port):
         assert len({result['id'] for result in results}) == 1, 'Concurrent requests created duplicate chats'
         chat = results[0]
         chat_id = chat['id']
+        assert client.get(chats + f'/chats/{chat_id}/members/{first_id}/check').status_code == 401
         duplicate = request('POST', chats + '/chats/private', second, json={'other_user_id': first_id})
         assert duplicate['id'] == chat_id
         listing = request('GET', chats + '/chats', first)
@@ -61,7 +62,7 @@ async def check(base_port):
             except InvalidStatus as error:
                 assert error.response.status_code == 403
         async with connect(ws_url + '?token=' + first) as left, connect(ws_url + '?token=' + second) as right:
-            await left.send('РџСЂРёРІРµС‚ РёР· СЃРєРІРѕР·РЅРѕРіРѕ С‚РµСЃС‚Р°')
+            await left.send('Привет из сквозного теста')
             sent, received = await asyncio.wait_for(asyncio.gather(left.recv(), right.recv()), 5)
             assert sent == received
             reply = request('POST', messages + '/messages', second, json={'chat_id': chat_id, 'text': 'HTTP reply'})
@@ -69,7 +70,7 @@ async def check(base_port):
             assert json.loads(sent) == json.loads(received) == reply
         history = request('GET', messages + f'/messages/chat/{chat_id}', second)
         assert len(history) == 2 and history[0]['sender_id'] == first_id
-        assert history[0]['text'] == 'РџСЂРёРІРµС‚ РёР· СЃРєРІРѕР·РЅРѕРіРѕ С‚РµСЃС‚Р°'
+        assert history[0]['text'] == 'Привет из сквозного теста'
         page = request('GET', messages + f'/messages/chat/{chat_id}?limit=1', first)
         next_page = request('GET', messages + f'/messages/chat/{chat_id}?limit=1&after_id={page[-1]["id"]}', first)
         assert page + next_page == history

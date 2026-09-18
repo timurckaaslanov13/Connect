@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database.dependencies import get_db
+from app.security.internal import require_internal_key
 
 from app.security.dependencies import get_current_user_id
 
@@ -60,6 +61,7 @@ async def get_chats(
 
 @router.get(
     "/{chat_id}/members/{user_id}/check",
+    dependencies=[Depends(require_internal_key)],
 )
 def check_chat_member(
     chat_id: int,
