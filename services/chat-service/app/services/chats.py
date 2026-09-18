@@ -106,28 +106,28 @@ async def get_user_private_chats(
 
         if other_member is None:
             continue
-    profile = await get_user_profile(
-    other_member.auth_user_id
-)
+        profile = await get_user_profile(
+            other_member.auth_user_id
+        )
 
-    result.append(
-        {
-            "id": chat.id,
-            "type": chat.type,
-            "other_user_id": other_member.auth_user_id,
-            "other_user_name": (
-                profile["display_name"]
-                if profile
-                else None
-            ),
-            "other_user_avatar_url": (
-                profile["avatar_url"]
-                if profile
-                else None
-            ),
-            "created_at": chat.created_at,
-        }
-    )
+        result.append(
+            {
+                "id": chat.id,
+                "type": chat.type,
+                "other_user_id": other_member.auth_user_id,
+                "other_user_name": (
+                    profile["display_name"]
+                    if profile
+                    else None
+                ),
+                "other_user_avatar_url": (
+                    profile["avatar_url"]
+                    if profile
+                    else None
+                ),
+                "created_at": chat.created_at,
+            }
+        )
 
     return result
 
