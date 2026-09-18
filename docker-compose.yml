@@ -12,7 +12,19 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
     depends_on:
       - auth-db
-      
+
+  auth-db:
+    image: postgres:16
+    container_name: connect-auth-db
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+
   user-service:
     build:
       context: ./services/user-service
@@ -20,9 +32,9 @@ services:
     ports:
       - "8001:8000"
     environment:
+      DATABASE_URL: postgresql+psycopg://user_user:user_password@user-db:5432/user_db
       JWT_SECRET_KEY: "super-secret-key-change-me"
       JWT_ALGORITHM: "HS256"
-      DATABASE_URL: postgresql+psycopg://user_user:user_password@user-db:5432/user_db
     depends_on:
       - user-db
 
@@ -38,18 +50,32 @@ services:
     volumes:
       - user_db_data:/var/lib/postgresql/data
 
-  auth-db:
-    image: postgres:16
-    container_name: connect-auth-db
-    environment:
-      POSTGRES_DB: auth_db
-      POSTGRES_USER: auth_user
-      POSTGRES_PASSWORD: auth_password
+  chat-service:
+    build:
+      context: ./services/chat-service
+    container_name: connect-chat-service
     ports:
-      - "5432:5432"
+      - "8002:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://chat_user:chat_password@chat-db:5432/chat_db
+      JWT_SECRET_KEY: "super-secret-key-change-me"
+      JWT_ALGORITHM: "HS256"
+    depends_on:
+      - chat-db
+
+  chat-db:
+    image: postgres:16
+    container_name: connect-chat-db
+    environment:
+      POSTGRES_DB: chat_db
+      POSTGRES_USER: chat_user
+      POSTGRES_PASSWORD: chat_password
+    ports:
+      - "5434:5432"
     volumes:
-      - auth_db_data:/var/lib/postgresql/data
+      - chat_db_data:/var/lib/postgresql/data
 
 volumes:
   auth_db_data:
   user_db_data:
+  chat_db_data:
