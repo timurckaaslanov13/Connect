@@ -17,3 +17,8 @@ class ProfileResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+class ProfileUpdate(BaseModel):
+    display_name: str | None = Field(default=None, min_length=2, max_length=100)
+    bio: str | None = Field(default=None, max_length=500)
+    avatar_url: str | None = None
