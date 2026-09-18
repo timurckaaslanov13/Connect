@@ -62,3 +62,57 @@ def create_private_chat(
     db.refresh(chat)
 
     return chat
+
+def get_user_chats(
+    db: Session,
+    current_user_id: int,
+) -> list[Chat]:
+    statement = (
+        select(Chat)
+        .join(
+            ChatMember,
+            Chat.id == ChatMember.chat_id,
+        )
+        .where(
+            ChatMember.auth_user_id == current_user_id
+        )
+        .order_by(Chat.created_at.desc())
+    )
+
+    return list(
+        db.scalars(statement).all()
+    )
+
+def get_user_private_chats(
+    db: Session,
+    current_user_id: int,
+) -> list[dict]:
+    chats = get_user_chats(
+        db=db,
+        current_user_id=current_user_id,
+    )
+
+    result = []
+
+    for chat in chats:
+        other_member = db.scalar(
+            select(ChatMember)
+            .where(
+                ChatMember.chat_id == chat.id,
+                ChatMember.auth_user_id != current_user_id,
+            )
+        )
+
+        if other_member is None:
+            continue
+
+        result.append(
+            {
+                "id": chat.id,
+                "type": chat.type,
+                "other_user_id": other_member.auth_user_id,
+                "created_at": chat.created_at,
+            }
+        )
+
+    return result

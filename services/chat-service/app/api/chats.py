@@ -2,10 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database.dependencies import get_db
-from app.schemas.chat import ChatResponse, PrivateChatCreate
-from app.security.dependencies import get_current_user_id
-from app.services.chats import create_private_chat
 
+from app.security.dependencies import get_current_user_id
+
+from app.services.chats import (
+    create_private_chat,
+    get_user_private_chats,
+)
+from app.schemas.chat import (
+    ChatResponse,
+    PrivateChatCreate,
+    PrivateChatResponse,
+)
 
 router = APIRouter(
     prefix="/chats",
@@ -35,3 +43,16 @@ def create_private_chat_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error),
         )
+        
+@router.get(
+    "",
+    response_model=list[PrivateChatResponse],
+)
+def get_chats(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    return get_user_private_chats(
+        db=db,
+        current_user_id=user_id,
+    )

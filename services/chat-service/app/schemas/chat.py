@@ -15,3 +15,9 @@ class ChatResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+class PrivateChatResponse(BaseModel):
+    id: int
+    type: str
+    other_user_id: int
+    created_at: datetime
