@@ -4,6 +4,7 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.database.connection import Base
 from app.models.profile import Profile
+from app.models.friendship import Friendship
 
 config = context.config
 # ConfigParser treats percent signs as interpolation markers.

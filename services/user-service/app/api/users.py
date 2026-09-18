@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
  
 
@@ -95,6 +95,7 @@ def update_user_profile(
     response_model=list[ProfileResponse],
 )
 def search_users(
+    user_id: int = Depends(get_current_user_id),
     q: str = Query(
         min_length=2,
         max_length=100,

@@ -70,7 +70,7 @@ def search_profiles(
     statement = (
         select(Profile)
         .where(
-            Profile.display_name.ilike(f"%{query}%")
+            Profile.display_name.icontains(query.strip(), autoescape=True)
         )
         .limit(limit)
     )
