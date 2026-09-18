@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PrivateChatCreate(BaseModel):
-    other_user_id: int
+    other_user_id: int = Field(gt=0)
 
 
 class ChatResponse(BaseModel):
