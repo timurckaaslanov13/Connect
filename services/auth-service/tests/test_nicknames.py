@@ -41,3 +41,25 @@ class NicknameTests(unittest.TestCase):
         self.db.add_all([User(email='a@example.com',username='ab_cd',password_hash='hash'),User(email='b@example.com',username='abxcd',password_hash='hash')]);self.db.commit()
         rows=directory(q='ab_',current_user=None,db=self.db)
         self.assertEqual([r['username'] for r in rows],['ab_cd'])
+
+    def test_public_account_requires_login_and_excludes_private_fields(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from app.api.auth import router
+        from app.database.dependencies import get_db
+        from app.security.dependencies import get_current_user
+        from sqlalchemy.pool import StaticPool
+        engine=create_engine('sqlite://',connect_args={'check_same_thread':False},poolclass=StaticPool)
+        Base.metadata.create_all(engine)
+        with Session(engine) as db:
+            user=User(email='private@example.com',username='public_nick',password_hash='secret-hash')
+            db.add(user);db.commit();db.refresh(user)
+            app=FastAPI();app.include_router(router)
+            app.dependency_overrides[get_db]=lambda: db
+            with TestClient(app) as client:
+                self.assertIn(client.get(f'/auth/directory/{user.id}').status_code,(401,403))
+                app.dependency_overrides[get_current_user]=lambda: user
+                response=client.get(f'/auth/directory/{user.id}')
+                self.assertEqual(response.json(),{'auth_user_id':user.id,'username':'public_nick'})
+                self.assertEqual(client.get('/auth/directory/99999').status_code,404)
+        engine.dispose()

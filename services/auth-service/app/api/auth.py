@@ -87,3 +87,11 @@ def directory(q: str = Query(min_length=2, max_length=50), current_user: User = 
         return []
     rows = db.scalars(select(User).where(func.lower(User.username).startswith(query, autoescape=True)).order_by(User.username, User.id).limit(20))
     return [{'auth_user_id': row.id, 'username': row.username} for row in rows]
+
+
+@router.get('/directory/{user_id}')
+def public_account(user_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(404, 'Пользователь не найден')
+    return {'auth_user_id': user.id, 'username': user.username}
