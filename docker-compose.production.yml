@@ -1,0 +1,60 @@
+# Docker Compose >= 2.24.4. Use together with docker-compose.yml.
+x-runtime: &runtime
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+services:
+  gateway:
+    <<: *runtime
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CONNECT_DOMAIN: ${CONNECT_DOMAIN:?Set your domain in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set certificate contact email in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+  web:
+    <<: *runtime
+    ports: !reset []
+    volumes:
+      - ./deploy/nginx-realip.conf:/etc/nginx/conf.d/00-realip.conf:ro
+  auth-service:
+    <<: *runtime
+    ports: !reset []
+  user-service:
+    <<: *runtime
+    ports: !reset []
+  chat-service:
+    <<: *runtime
+    ports: !reset []
+  message-service:
+    <<: *runtime
+    ports: !reset []
+  auth-db:
+    <<: *runtime
+    ports: !reset []
+  user-db:
+    <<: *runtime
+    ports: !reset []
+  chat-db:
+    <<: *runtime
+    ports: !reset []
+  message-db:
+    <<: *runtime
+    ports: !reset []
+  redis:
+    <<: *runtime
+volumes:
+  caddy_data:
+  caddy_config:
