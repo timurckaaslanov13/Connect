@@ -24,3 +24,5 @@ export const wsUrl=(path:string)=>`${location.protocol==='https:'?'wss:':'ws:'}/
 export const initials=(name:string)=>(name.trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('')||'C').toUpperCase()
 export const clock=(date:string)=>new Date(date).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})
 export const dateLabel=(date:string)=>new Date(date).toLocaleDateString('ru-RU',{day:'numeric',month:'long'})
+
+export function plural(n:number,one:string,few:string,many:string){const a=Math.abs(n)%100,b=a%10;return a>=11&&a<=14?many:b===1?one:b>=2&&b<=4?few:many}
