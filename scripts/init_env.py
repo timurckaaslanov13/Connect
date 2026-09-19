@@ -9,6 +9,7 @@ def initialize(output: Path, test_ports: bool):
         'JWT_SECRET_KEY', 'INTERNAL_API_KEY', 'AUTH_DB_PASSWORD', 'USER_DB_PASSWORD',
         'CHAT_DB_PASSWORD', 'MESSAGE_DB_PASSWORD')}
     if test_ports:
+        values['WEB_PORT'] = '18080'
         for i, service in enumerate(('AUTH', 'USER', 'CHAT', 'MESSAGE')):
             values[service + '_PORT'] = str(18000 + i)
             values[service + '_DB_PORT'] = str(15432 + i)
