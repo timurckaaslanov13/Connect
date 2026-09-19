@@ -4,6 +4,7 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.database.connection import Base
 from app.models.message import Message
+from app.models.call import Call
 
 config = context.config
 # ConfigParser treats percent signs as interpolation markers.

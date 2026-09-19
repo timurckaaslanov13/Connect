@@ -77,3 +77,16 @@ def check_chat_member(
     return {
         "is_member": is_member,
     }
+
+@router.get('/{chat_id}/members', dependencies=[Depends(require_internal_key)])
+def member_ids(chat_id: int, db: Session = Depends(get_db)):
+    from sqlalchemy import select
+    from app.models.chat_member import ChatMember
+    return {'members': list(db.scalars(select(ChatMember.auth_user_id).where(ChatMember.chat_id == chat_id)))}
+
+
+@router.get('/internal/users/{user_id}/chats', dependencies=[Depends(require_internal_key)])
+def user_chat_ids(user_id: int, db: Session = Depends(get_db)):
+    from sqlalchemy import select
+    from app.models.chat_member import ChatMember
+    return {'chats': list(db.scalars(select(ChatMember.chat_id).where(ChatMember.auth_user_id == user_id)))}
