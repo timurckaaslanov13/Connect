@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.database.dependencies import get_db
@@ -78,3 +78,12 @@ def me(
     current_user: User = Depends(get_current_user),
 ):
     return current_user
+
+@router.get('/directory')
+def directory(q: str = Query(min_length=2, max_length=50), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from sqlalchemy import select, func
+    query = q.strip().lstrip('@').lower()
+    if len(query) < 2:
+        return []
+    rows = db.scalars(select(User).where(func.lower(User.username).startswith(query, autoescape=True)).order_by(User.username, User.id).limit(20))
+    return [{'auth_user_id': row.id, 'username': row.username} for row in rows]

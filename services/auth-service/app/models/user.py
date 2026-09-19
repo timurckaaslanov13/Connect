@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, String, func, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.connection import Base
@@ -35,3 +35,5 @@ class User(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+Index("ux_users_username_lower", func.lower(User.username), unique=True)

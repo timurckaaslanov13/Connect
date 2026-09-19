@@ -8,6 +8,7 @@ class ProfileCreate(BaseModel):
 
 
 class ProfileResponse(BaseModel):
+    username: str | None = None
     id: int
     auth_user_id: int
     display_name: str

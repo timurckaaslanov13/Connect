@@ -1,5 +1,6 @@
 from pwdlib import PasswordHash
-from sqlalchemy import select
+from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.schemas.user import UserLogin, UserRegister
 from app.models.user import User
@@ -17,7 +18,7 @@ def register_user(db: Session, data: UserRegister) -> User:
     existing_user = db.scalar(
         select(User).where(
             (User.email == data.email) |
-            (User.username == data.username)
+            (func.lower(User.username) == data.username)
         )
     )
 
@@ -33,7 +34,11 @@ def register_user(db: Session, data: UserRegister) -> User:
     )
 
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise UserAlreadyExistsError("Email или ник уже занят") from None
     db.refresh(user)
 
     return user

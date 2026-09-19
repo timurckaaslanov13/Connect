@@ -1,4 +1,4 @@
-export type Profile = {id:number;auth_user_id:number;display_name:string;bio:string|null;avatar_url:string|null}
+export type Profile = {username?:string;id:number;auth_user_id:number;display_name:string;bio:string|null;avatar_url:string|null}
 export type Message = {id:number;chat_id:number;sender_id:number;text:string;created_at:string;is_read:boolean}
 export type Chat = {id:number;other_user_id:number;other_user_name:string|null;other_user_avatar_url:string|null;created_at:string}
 export type Friend = {id:number;user_id:number;display_name:string;avatar_url:string|null;bio:string|null;status:'pending'|'accepted';direction:'incoming'|'outgoing'}

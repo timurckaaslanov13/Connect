@@ -62,23 +62,6 @@ def update_profile(
 
     return profile
 
-def search_profiles(
-    db: Session,
-    query: str,
-    limit: int = 20,
-) -> list[Profile]:
-    statement = (
-        select(Profile)
-        .where(
-            Profile.display_name.icontains(query.strip(), autoescape=True)
-        )
-        .limit(limit)
-    )
-
-    return list(
-        db.scalars(statement).all()
-    )
-
 def get_profile_by_id(
     db: Session,
     profile_id: int,

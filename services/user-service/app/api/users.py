@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database.dependencies import get_db
 
-from app.security.dependencies import get_current_user_id
+from app.security.dependencies import get_current_user_id, bearer_scheme
 from app.schemas.profile import (
     ProfileCreate,
     ProfileResponse,
@@ -15,7 +15,6 @@ from app.services.users import (
     create_profile,
     get_profile,
     update_profile,
-    search_profiles,
     get_profile_by_id,
     get_profile_by_auth_user_id
 )
@@ -95,6 +94,7 @@ def update_user_profile(
     response_model=list[ProfileResponse],
 )
 def search_users(
+    credentials = Depends(bearer_scheme),
     user_id: int = Depends(get_current_user_id),
     q: str = Query(
         min_length=2,
@@ -102,10 +102,21 @@ def search_users(
     ),
     db: Session = Depends(get_db),
 ):
-    return search_profiles(
-        db=db,
-        query=q,
-    )
+    import json
+    from urllib.request import Request, urlopen
+    from urllib.parse import urlencode
+    from urllib.error import URLError
+    from sqlalchemy import select
+    from app.models.profile import Profile
+    from app.core.config import settings
+    try:
+        request = Request(settings.auth_service_url + '/auth/directory?' + urlencode({'q': q}), headers={'Authorization': 'Bearer ' + credentials.credentials})
+        with urlopen(request, timeout=5) as response:
+            users = json.load(response)
+    except (URLError, TimeoutError, ValueError):
+        raise HTTPException(503, 'Поиск временно недоступен') from None
+    profiles = {p.auth_user_id: p for p in db.scalars(select(Profile).where(Profile.auth_user_id.in_([u['auth_user_id'] for u in users])))}
+    return [ProfileResponse.model_validate(profiles[u['auth_user_id']]).model_copy(update={'username': u['username']}) for u in users if u['auth_user_id'] in profiles]
     
 @router.get(
     "/{profile_id}",
