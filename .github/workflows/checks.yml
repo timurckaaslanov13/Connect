@@ -27,6 +27,23 @@ jobs:
         run: python scripts/check_migrations.py --project connect-check
       - name: Cross-service and cross-instance smoke test
         run: python scripts/smoke_test.py --base-port 18000 --peer-port 18004
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install frontend test tools
+        working-directory: frontend
+        run: |
+          npm install -g pnpm@11.19.0
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: Browser regression tests
+        working-directory: frontend
+        run: pnpm exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: frontend/test-results
       - name: Show container state on failure
         if: failure()
         run: docker compose --env-file .env.check -p connect-check -f docker-compose.yml -f docker-compose.check.yml ps -a

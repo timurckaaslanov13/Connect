@@ -14,6 +14,7 @@ async function register(page:Page,name:string,id:string){
  await expect(page.locator('.page-heading h1')).toContainText(name.split(' ')[0])
 }
 test('two accounts: friends, chat, read receipts, video and audio calls',async({browser})=>{
+ test.setTimeout(180000)
  const first=await browser.newContext({baseURL,permissions:['camera','microphone'],viewport:{width:1440,height:1000}})
  const second=await browser.newContext({baseURL,permissions:['camera','microphone'],viewport:{width:1280,height:900}})
  const alice=await first.newPage(),bob=await second.newPage(),tag=unique(),aliceName='Алиса '+tag,bobName='Борис '+tag
@@ -42,6 +43,13 @@ test('two accounts: friends, chat, read receipts, video and audio calls',async({
  await bob.getByRole('button',{name:'Отправить сообщение'}).click()
  await expect(alice.locator('.message-bubble').last()).toContainText('Давай созвонимся')
  await alice.screenshot({path:'test-results/visual/chat-desktop.png',fullPage:true})
+  await first.setOffline(true)
+  await bob.getByRole('textbox',{name:'Сообщение',exact:true}).fill('Сообщение во время потери сети')
+  await bob.getByRole('button',{name:'Отправить сообщение'}).click()
+  await first.setOffline(false)
+  await expect(alice.locator('.message-bubble').last()).toContainText('во время потери сети')
+  await expect(alice.locator('.connection')).toHaveText('На связи')
+
  for(const kind of ['Видеозвонок','Аудиозвонок']){
   await alice.getByRole('button',{name:kind,exact:true}).click()
   await expect(bob.getByRole('dialog',{name:'Звонок'})).toBeVisible()
@@ -50,7 +58,14 @@ test('two accounts: friends, chat, read receipts, video and audio calls',async({
   await expect(bob.locator('.call-person p')).toHaveText(/\d{2}:\d{2}/,{timeout:30000})
   const remote=kind==='Видеозвонок'?'.remote-video':'.audio-stream'
   await expect.poll(()=>bob.locator(remote).evaluate((el:HTMLVideoElement)=>({ready:el.readyState,tracks:(el.srcObject as MediaStream)?.getTracks().map(t=>t.readyState)}))).toMatchObject({ready:4})
-  if(kind==='Видеозвонок')await bob.screenshot({path:'test-results/visual/video-call.png',fullPage:true})
+  if(kind==='Аудиозвонок'){
+    // A sustained call must survive quiet signalling and keep receiving audio.
+    const packets=()=>bob.evaluate(async()=>{const video=document.querySelector('.audio-stream') as HTMLVideoElement;return video.currentTime})
+    const start=await packets()
+    await expect.poll(packets,{timeout:80000,intervals:[5000]}).toBeGreaterThan(start+65)
+    await expect(alice.getByRole('dialog',{name:'Звонок'})).toBeVisible()
+   }
+   if(kind==='Видеозвонок')await bob.screenshot({path:'test-results/visual/video-call.png',fullPage:true})
   await alice.getByRole('button',{name:'Выключить микрофон'}).click()
   await expect(alice.getByRole('button',{name:'Включить микрофон'})).toBeVisible()
   await bob.getByRole('button',{name:'Завершить звонок'}).click()
@@ -77,5 +92,11 @@ test('mobile layout, registration and profile',async({browser})=>{
  await page.reload()
  await page.locator('.bottom-nav').getByRole('button',{name:'Профиль',exact:true}).click()
  await expect(page.getByLabel('О себе')).toHaveValue('Люблю путешествия и хорошую компанию')
- await context.close()
+ await page.getByRole('button',{name:'Выйти из аккаунта'}).click()
+  await page.getByLabel('Электронная почта').fill('m'+tag+'@example.com')
+  await page.getByLabel('Пароль',{exact:true}).fill('Connect_test_2026!')
+  await page.getByRole('button',{name:'Войти в Connect'}).click()
+  await expect(page.locator('.page-heading h1')).toContainText('Марина')
+  await expect(page.locator('.connection')).toHaveText('На связи')
+  await context.close()
 })
