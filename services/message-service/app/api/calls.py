@@ -106,6 +106,9 @@ async def event_socket(websocket: WebSocket):
                     return
                 data = None
                 try:
+                    if json.loads(raw).get('type') == 'ping':
+                        await websocket.send_json({'type': 'pong'})
+                        continue
                     data = Signal.model_validate_json(raw)
                     await relay(data, user_id)
                     if data.type in ('call.invite', 'call.answer'):

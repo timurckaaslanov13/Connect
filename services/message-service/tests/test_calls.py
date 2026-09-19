@@ -37,3 +37,23 @@ class CallTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(calls.user_events,'redis',MemoryRedis()),patch.object(calls.user_events,'ready',True),patch.object(calls,'check_user_chat_membership',AsyncMock(return_value=False)):
             with self.assertRaises(ValueError):
                 await relay(Signal(type='call.invite',call_id=uuid4(),chat_id=1,target_id=2,sdp='offer'),1)
+
+
+class EventSocketTests(unittest.TestCase):
+    def test_heartbeat_does_not_enter_call_signalling(self):
+        import time
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        app = FastAPI()
+        app.include_router(calls.router)
+        with patch.object(calls, 'decode_access_token', return_value=1), patch.object(calls, 'get_access_token_expiry', return_value=time.time()+60), patch.object(calls, 'relay', AsyncMock()) as relay_mock:
+            with TestClient(app).websocket_connect('/ws/events') as ws:
+                ws.send_json({'type': 'auth', 'token': 'test'})
+                self.assertEqual(ws.receive_json()['type'], 'ready')
+                ws.send_json({'type': 'ping'})
+                self.assertEqual(ws.receive_json(), {'type': 'pong'})
+                ws.send_text('not json')
+                self.assertEqual(ws.receive_json()['type'], 'call.error')
+                ws.send_json({'type': 'ping'})
+                self.assertEqual(ws.receive_json(), {'type': 'pong'})
+            relay_mock.assert_not_called()

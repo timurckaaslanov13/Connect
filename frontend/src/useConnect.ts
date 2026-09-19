@@ -17,21 +17,29 @@ export function useConnect(){
  const refresh=useCallback(async()=>{const [c,f,s,r]=await Promise.all([api<Chat[]>('/chats'),api<Friend[]>('/friends'),api<Summary[]>('/messages/inbox'),api<CallRecord[]>('/calls')]);setChats(c);setFriends(f);setSummaries(s);setRecords(r)},[])
  async function initialize(){setLoading(true);setStartupError('');try{const me=await api<Account>('/auth/me');setAccount(me);let p:Profile;try{p=await api<Profile>('/users/profile')}catch(error){if(error instanceof ApiError&&error.status===404)p=await api<Profile>('/users/profile','POST',{display_name:me.username});else throw error}setProfile(p);await refresh()}catch(error){setStartupError((error as Error).message)}finally{setLoading(false)}}
  useEffect(()=>{if(token)void initialize()},[token])
- useEffect(()=>{if(!token)return;const interval=setInterval(()=>void refresh().catch(()=>{}),15000);return()=>clearInterval(interval)},[token,refresh])
+ useEffect(()=>{
+  if(!token)return
+  let busy=false
+  const sync=async()=>{if(busy||document.visibilityState==='hidden')return;busy=true;try{await refresh();const chat=activeRef.current;if(chat)await loadMessages(chat,false)}catch{/* Retry on the next tick or focus. */}finally{busy=false}}
+  const interval=setInterval(()=>void sync(),5000)
+  const wake=()=>void sync()
+  window.addEventListener('online',wake);window.addEventListener('focus',wake);document.addEventListener('visibilitychange',wake)
+  return()=>{clearInterval(interval);window.removeEventListener('online',wake);window.removeEventListener('focus',wake);document.removeEventListener('visibilitychange',wake)}
+ },[token,refresh])
  useEffect(()=>{activeRef.current=activeChat},[activeChat])
  useEffect(()=>{if(skipScroll.current){skipScroll.current=false;return}messageEnd.current?.scrollIntoView({behavior:'smooth',block:'end'})},[messages.length])
- useEffect(()=>{if(!token)return;let cancelled=false,timer:ReturnType<typeof setTimeout>,attempt=0;let queue=Promise.resolve();const connect=()=>{
+ useEffect(()=>{if(!token)return;let cancelled=false,timer:ReturnType<typeof setTimeout>,heartbeat:ReturnType<typeof setInterval>,attempt=0;let queue=Promise.resolve();const connect=()=>{
   if(cancelled)return;const ws=new WebSocket(wsUrl('/ws/events'));socket.current=ws
-  ws.onopen=()=>ws.send(JSON.stringify({type:'auth',token}))
+  ws.onopen=()=>{ws.send(JSON.stringify({type:'auth',token}));heartbeat=setInterval(()=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ping'}))},20000)}
   ws.onmessage=e=>{try{const event=JSON.parse(e.data);if(event.type==='ready'){setConnected(true);attempt=0;void refresh().catch(()=>{});const current=activeRef.current;if(current)void loadMessages(current,false);return}queue=queue.then(()=>eventHandler.current(event)).catch(()=>notify('Не удалось обновить событие.'))}catch{/* invalid server frame */}}
-  ws.onclose=e=>{setConnected(false);if(cancelled)return;if(e.code===1008){window.dispatchEvent(new Event('session-expired'));return}rtc.clear();timer=setTimeout(connect,Math.min(1000*2**attempt++,15000))};ws.onerror=()=>ws.close()
- };connect();return()=>{cancelled=true;clearTimeout(timer);socket.current?.close();socket.current=null;setConnected(false)}},[token])
+  ws.onclose=e=>{clearInterval(heartbeat);setConnected(false);if(cancelled)return;if(e.code===1008){window.dispatchEvent(new Event('session-expired'));return}rtc.clear();timer=setTimeout(connect,Math.min(1000*2**attempt++,15000))};ws.onerror=()=>ws.close()
+ };connect();return()=>{cancelled=true;clearTimeout(timer);clearInterval(heartbeat);socket.current?.close();socket.current=null;setConnected(false)}},[token])
  eventHandler.current=async event=>{
   if(event.type==='message'){const m:Message=event.message;if(activeRef.current?.id===m.chat_id){setMessages(old=>merge(old,[m]));if(m.sender_id!==account?.id)void api(`/messages/chat/${m.chat_id}/read`,'POST').catch(()=>{})}setSummaries(old=>{const found=old.find(s=>s.chat_id===m.chat_id),updated={chat_id:m.chat_id,last_message:m,unread:activeRef.current?.id===m.chat_id||m.sender_id===account?.id?0:(found?.unread||0)+1};return [...old.filter(s=>s.chat_id!==m.chat_id),updated]});if(!chats.some(c=>c.id===m.chat_id))void refresh().catch(()=>{});return}
   if(event.type==='read'){if(event.user_id!==account?.id)setMessages(old=>old.map(m=>m.chat_id===event.chat_id&&m.sender_id===account?.id&&m.id<=event.last_id?{...m,is_read:true}:m));else setSummaries(old=>old.map(s=>s.chat_id===event.chat_id?{...s,unread:0}:s));return}
   if(event.type?.startsWith('call.')){let name=chats.find(c=>c.other_user_id===event.sender_id)?.other_user_name||friends.find(f=>f.user_id===event.sender_id)?.display_name||undefined;if(event.type==='call.invite'&&!name){try{name=(await api<Profile>(`/users/by-auth-id/${event.sender_id}`)).display_name}catch{}}await rtc.receive(event as Signal,name);if(event.type==='call.end')void refresh().catch(()=>{})}
  }
- async function loadMessages(chat:Chat,reset=true,before?:number){const request=++messageRequest.current;setMessagesLoading(true);try{const rows=await api<Message[]>(`/messages/chat/${chat.id}?latest=true&limit=50${before?'&before_id='+before:''}`);if(request!==messageRequest.current)return;if(before)skipScroll.current=true;setMessages(old=>reset?rows:merge(old,rows));setHasOlder(rows.length===50);await api(`/messages/chat/${chat.id}/read`,'POST');setSummaries(old=>old.map(s=>s.chat_id===chat.id?{...s,unread:0}:s))}catch(e){notify((e as Error).message)}finally{if(request===messageRequest.current)setMessagesLoading(false)}}
+ async function loadMessages(chat:Chat,reset=true,before?:number){const request=++messageRequest.current;setMessagesLoading(true);try{const rows=await api<Message[]>(`/messages/chat/${chat.id}?latest=true&limit=50${before?'&before_id='+before:''}`);if(request!==messageRequest.current)return;if(before)skipScroll.current=true;setMessages(old=>merge(old,rows));if(reset||before)setHasOlder(rows.length===50);await api(`/messages/chat/${chat.id}/read`,'POST');setSummaries(old=>old.map(s=>s.chat_id===chat.id?{...s,unread:0}:s))}catch(e){notify((e as Error).message)}finally{if(request===messageRequest.current)setMessagesLoading(false)}}
  function openChat(chat:Chat){setPage('chats');setActiveChat(chat);activeRef.current=chat;setMessages([]);setDraft('');setEmoji(false);void loadMessages(chat)}
  function closeChat(){setActiveChat(null);activeRef.current=null;messageRequest.current++}
  async function startChat(userId:number,name:string){setActionBusy(true);try{const row=await api<{id:number;created_at:string}>('/chats/private','POST',{other_user_id:userId});const chat={id:row.id,other_user_id:userId,other_user_name:name,other_user_avatar_url:null,created_at:row.created_at};await refresh();openChat(chat)}catch(e){notify((e as Error).message)}finally{setActionBusy(false)}}
