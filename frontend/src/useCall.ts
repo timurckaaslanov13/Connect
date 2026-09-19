@@ -19,19 +19,26 @@ export function useCall(send:(data:unknown)=>void,notify:(message:string)=>void)
   const prepare=async(active:CallState)=>{
     if(!navigator.mediaDevices?.getUserMedia)throw new Error('Для звонка откройте Connect через HTTPS или localhost')
     let media:MediaStream
-    try{media=await navigator.mediaDevices.getUserMedia({audio:true,video:active.media==='video'?{facingMode:'user',width:{ideal:1280},height:{ideal:720}}:false})}
+    try{media=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:active.media==='video'?{facingMode:'user',width:{ideal:640},height:{ideal:480},frameRate:{ideal:24,max:30}}:false})}
     catch {throw new Error('Разрешите доступ к микрофону'+(active.media==='video'?' и камере':'')+' в настройках браузера')}
     if(current.current?.id!==active.id){media.getTracks().forEach(t=>t.stop());throw new Error('Звонок отменён')}
     stream.current=media;setLocal(media)
     const config=await api<RTCConfiguration>('/calls/config')
     if(current.current?.id!==active.id)throw new Error('Звонок отменён')
     const peer=new RTCPeerConnection(config);pc.current=peer
-    media.getTracks().forEach(t=>peer.addTrack(t,media))
+    for(const track of media.getTracks()){
+      const sender=peer.addTrack(track,media)
+      if(track.kind==='video'){
+        const parameters=sender.getParameters()
+        parameters.encodings=[{...(parameters.encodings?.[0]||{}),maxBitrate:800000,maxFramerate:30}]
+        try{await sender.setParameters(parameters)}catch{/* Browser may not support encoding limits. */}
+      }
+    }
     peer.ontrack=e=>setRemote(e.streams[0]||new MediaStream([e.track]))
     peer.onicecandidate=e=>{if(e.candidate){const candidate=e.candidate.toJSON();if(canSendIce.current){try{signal('call.ice',{candidate})}catch{hangup('failed')}}else outgoingIce.current.push(candidate)}}
     peer.onconnectionstatechange=()=>{
       if(pc.current!==peer)return
-      if(peer.connectionState==='connected'){clearTimeout(timeout.current);if(current.current)update({...current.current,phase:'active',started:Date.now()})}
+      if(peer.connectionState==='connected'){clearTimeout(timeout.current);if(current.current)update({...current.current,phase:'active',started:current.current.started||Date.now()})}
       if(peer.connectionState==='failed'){notify('Соединение прервалось. Попробуйте позвонить ещё раз.');hangup('failed')}
       if(peer.connectionState==='disconnected'){clearTimeout(timeout.current);timeout.current=setTimeout(()=>{if(peer.connectionState!=='connected')hangup('failed')},10000)}
     }
@@ -58,7 +65,7 @@ export function useCall(send:(data:unknown)=>void,notify:(message:string)=>void)
     if(!current.current||event.call_id!==current.current.id)return
     if(event.type==='call.end'){const labels:Record<string,string>={declined:'Звонок отклонён',busy:'Пользователь занят',missed:'Пропущенный звонок',failed:'Не удалось установить соединение',ended:'Звонок завершён'};notify(labels[event.reason||'ended']||'Звонок завершён');clear();return}
     try{
-      if(event.type==='call.answer' && pc.current){update({...current.current,phase:'connecting'});await pc.current.setRemoteDescription({type:'answer',sdp:event.sdp});for(const candidate of incomingIce.current.splice(0))await pc.current.addIceCandidate(candidate)}
+      if(event.type==='call.answer' && pc.current){clearTimeout(timeout.current);timeout.current=setTimeout(()=>{if(current.current?.phase!=='active')fail(new Error('Не удалось соединиться. Проверьте сеть.'))},30000);update({...current.current,phase:'connecting'});await pc.current.setRemoteDescription({type:'answer',sdp:event.sdp});for(const candidate of incomingIce.current.splice(0))await pc.current.addIceCandidate(candidate)}
       if(event.type==='call.ice'&&event.candidate){if(pc.current?.remoteDescription)await pc.current.addIceCandidate(event.candidate);else incomingIce.current.push(event.candidate)}
     }catch(error){fail(error)}
   }
